@@ -2,7 +2,7 @@
 	
 	/*
 		
-		version 0.0.1
+		version 0.0.2
 	
 		william © botenvouwer - microBoatDB class
 		
@@ -131,7 +131,7 @@
 		private $onemode = true;
 		protected $db = null;
 		public $result = null;
-		public $rows = null;
+		public $count = 0;
 		public $last = 'No Queries made yet';
 		
 		public function __construct($db, $name){
@@ -141,8 +141,8 @@
 			
 		}
 		
-		public function count(){
-			return $this->db->one("SELECT COUNT(*) FROM `$this->name`");
+		public function count($filter = ''){
+			return $this->db->one("SELECT COUNT(*) FROM `$this->name` $filter");
 		}
 		
 		public function get($id = null, $columns = null, $order = null, $filer = null){
@@ -223,7 +223,7 @@
 			else{
 				$array = $query->fetchAll();
 				$this->result = (empty($array) ? false : true);
-				$this->rows = count($array);
+				$this->count = count($array);
 				return $array;
 			}
 		}
@@ -364,6 +364,10 @@
 		public $selector = false;
 			
 		public function re_boolean($array, $name, $value){
+			return ($value ? $array[0] : $array[1]);
+		}		
+		
+		public function re_bool($array, $name, $value){
 			return ($value ? $array[0] : $array[1]);
 		}
 		
