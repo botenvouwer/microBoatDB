@@ -1,11 +1,16 @@
 <?php
 	
-	include('database.class.php');
+	include('microBoatDB.class.php');
 	
-	$db = new microBoatDB('localhost:3306', 'test', 'root', 'usbw');
-	$db->setDebugMode(true);
+	$db = new microBoatDB('localhost', 'databaseinator', 'root', 'usbw');
 	
-    echo $db->lijsten->loop('test [naam] <br>');
+	$array = array(
+		array(":id1", 12),
+		array(":id2", 13),
+		array(":id3", 14)
+	);
+	$query = $db->query("SELECT * FROM `leerlingen` WHERE `id` IN(:id1, :id2, :id3)", $array);
 	
+	echo '<pre>'. print_r($query->fetchAll(),true) .'</pre>';
 	
 ?>

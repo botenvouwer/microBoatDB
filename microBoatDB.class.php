@@ -2,7 +2,7 @@
 	
 	/*
 		
-		version 0.0.2
+		version 0.0.3
 	
 		william © botenvouwer - microBoatDB class
 		
@@ -98,6 +98,67 @@
 			}
 			$query->execute();
 			return $query;
+		}
+		
+		public function query(){
+			
+			$num = func_num_args();
+			$arg = func_get_args();
+			
+			if($num == 1){
+				return parent::query($arg[0]);
+			}
+			else if($num > 1){
+				
+				if($num == 2){
+					if(is_array($arg[1])){
+						$param = $arg[1];
+						if(!is_array($arg[1][0])){
+							$param = array($param);
+						}
+					}
+					else{
+						throw new Exception('Second parameter must be an array or use single tag mode');
+					}
+				}
+				else if($num == 3 || $num == 4){
+					$param = array($arg[1], $arg[2]);
+					if($num == 4){
+						$param[2] = $arg[3];
+					}
+					$param = array($param);
+				}
+				else{
+					throw new Exception('No support for 5th argument');
+				}
+				
+				$query = $this->prepare($arg[0]);
+				foreach($param as $par){
+					if(!isset($par[2])){
+						$par[2] = 'str';
+					}
+					switch($par[2]){
+						case 'int':
+							$query->bindParam($par[0], $par[1], PDO::PARAM_INT);
+							break;
+						case 'str':
+							$query->bindParam($par[0], $par[1], PDO::PARAM_STR);
+							break;
+						case 'blob':
+							$query->bindParam($par[0], $par[1], PDO::PARAM_LOB);
+							break;
+						default:
+							$query->bindParam($par[0], $par[1], PDO::PARAM_STR);
+							break;
+					}
+				}
+				$query->execute();
+				return $query;
+				
+			}
+			else{
+				throw new Exception('Can\'t query withoud a query!');
+			}
 		}
 		
 		public function one($query, $param = array()){
