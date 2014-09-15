@@ -1,5 +1,7 @@
 <?php
 	
+	//pseudo code:
+	
 	#-> Include the database class
 	include('microBoatDB.class.php');
 	

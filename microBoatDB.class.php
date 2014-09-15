@@ -2,7 +2,7 @@
 	
 	/*
 		
-		version 0.0.3
+		version 0.0.4
 	
 		william © botenvouwer - microBoatDB class
 		
@@ -13,9 +13,7 @@
 			-	update function
 			-	delete function
 			-	innerjoin automaticly
-			-	create table function
-			-	money loop function
-	
+		
 		solution  for inner join:
 			//relatie info
 			SELECT * FROM information_schema.KEY_COLUMN_USAGE
@@ -27,24 +25,25 @@
 	*/
 	
 	//Database class
-	class microBoatDB extends Pdo{
+	class microBoatDB extends PDO{
 		
 		private $debugMode = false;
+		private $objectMode = true;
+		public $lastQuery = 'No Queries made yet';
 		
 		public function __construct($server = '', $dbname = '', $user = '', $pass = ''){
 			
 			parent::__construct('mysql:dbname='.$dbname.';host='.$server, $user, $pass);
-		
+			
 			$this->setConf();	
 			$this->setAttribute(PDO::ATTR_CASE, PDO::CASE_NATURAL);
-			$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
 			
 			//vervang voor list tables
 			$query = $this->query("SHOW TABLES");
-			$query = $query->fetchAll();
+			$this->tabels = $query->fetchAll();
 			
 			$colmname = 'Tables_in_'.$dbname;
-			foreach($query as $key => $object){
+			foreach($this->tabels as $key => $object){
 				$ntc = $object->$colmname;
 				$this->$ntc = new microBoatDBTable($this, $object->$colmname);
 			}
@@ -59,6 +58,13 @@
 			else{
 				$this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
 			}
+			
+			if($this->objectMode){
+				$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
+			}
+			else{
+				$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+			}
 		
 		}
 		
@@ -70,34 +76,12 @@
 			$this->setConf();
 		}
 		
-		public function listTables(){
-			//lijst maken van tabbelen
-		}
-
-		public function prepareQuery($queryString, $param = array()){
-		
-			$query = $this->prepare($queryString);
-			foreach($param as $par){
-				if(!isset($par[2])){
-					$par[2] = false;
-				}
-				switch($par[2]){
-					case 'int':
-						$query->bindParam($par[0], $par[1], PDO::PARAM_INT);
-						break;
-					case 'str':
-						$query->bindParam($par[0], $par[1], PDO::PARAM_STR);
-						break;
-					case 'blob':
-						$query->bindParam($par[0], $par[1], PDO::PARAM_LOB);
-						break;
-					default:
-						$query->bindParam($par[0], $par[1], PDO::PARAM_STR);
-						break;
-				}
+		public function setObjectMode($bool){
+			if(!is_bool($bool)){
+				 throw new Exception('Attribute must be bool');
 			}
-			$query->execute();
-			return $query;
+			$this->objectMode = $bool;
+			$this->setConf();
 		}
 		
 		public function query(){
@@ -105,7 +89,8 @@
 			$num = func_num_args();
 			$arg = func_get_args();
 			
-			if($num == 1){
+			if($num == 1 || $num == 2 && $arg[1] === NULL){
+				$this->lastQuery = $arg[0];
 				return parent::query($arg[0]);
 			}
 			else if($num > 1){
@@ -116,6 +101,12 @@
 						if(!is_array($arg[1][0])){
 							$param = array($param);
 						}
+					}
+					else if(is_string($arg[1])){
+						$param = array(array(':param', $arg[1], 'str'));
+					}
+					else if(is_int($arg[1])){
+						$param = array(array(':param', $arg[1], 'int'));
 					}
 					else{
 						throw new Exception('Second parameter must be an array or use single tag mode');
@@ -153,6 +144,7 @@
 					}
 				}
 				$query->execute();
+				$this->lastQuery = $arg[0];
 				return $query;
 				
 			}
@@ -161,14 +153,10 @@
 			}
 		}
 		
-		public function one($query, $param = array()){
-			$query = $this->prepareQuery($query, $param);
+		public function one($query, $param = NULL){
+			$query = $this->query($query, $param);
 			$query = $query->fetchColumn();
 			return $query;
-		}
-		
-		public function add($tablename, $table_colloms){
-			//add table
 		}
 		
 		public function conInfo()
@@ -193,17 +181,17 @@
 		protected $db = null;
 		public $result = null;
 		public $count = 0;
-		public $last = 'No Queries made yet';
+		public $lastQuery;
 		
 		public function __construct($db, $name){
-			
 			$this->name = $name;
 			$this->db = $db;
-			
+			$this->lastQuery = 'No Queries made yet on table: '.$this->name;
 		}
 		
-		public function count($filter = ''){
-			return $this->db->one("SELECT COUNT(*) FROM `$this->name` $filter");
+		public function count($filter = '', $params = NULL){
+			$filter = ($filter ? 'WHERE '.$filter : '');
+			return $this->db->one("SELECT COUNT(*) FROM `$this->name` $filter", $params);
 		}
 		
 		public function get($id = null, $columns = null, $order = null, $filer = null){
@@ -274,8 +262,8 @@
 			}
 			
 			$query = "SELECT $columns FROM `$this->name` $where $order";
-			$this->last = $query;
-			$query = $this->db->prepareQuery($query, $parram);
+			$this->lastQuery = $query;
+			$query = $this->db->query($query, $parram);
 			
 			if($onemode1 && $onemode2 && $this->onemode){
 				$query = $query->fetchColumn();
@@ -388,11 +376,45 @@
 			return $newstring;
 		}
 		
+		public function remove($id){
+			$this->delete($id);
+		} 
+		
 		public function delete($id){
+			
+			//moet argument hebben
+			
+			//1 record verwijder modus
+			
+			//2 of meer verwijder modus
+			
+				//alle ids preparen
 			
 		}
 		
+		public function change($id, $data){
+			$this->update($id, $data);
+		}
+		
 		public function update($id, $data){
+			
+			//moet 2 argumenten hebben
+			
+			//1 record update mode
+			
+			//2 of meer update mode
+			
+				//alle data preparen
+			
+		}
+		
+		public function add($data){
+			$this->insert($data);
+		}
+		
+		public function insert($data){
+			
+			//Insert statement maken... 
 			
 		}
 		
