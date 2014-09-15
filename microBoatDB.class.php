@@ -13,6 +13,7 @@
 			-	update function
 			-	delete function
 			-	innerjoin automaticly
+			-   primary key mode
 		
 		solution  for inner join:
 			//relatie info
@@ -30,6 +31,8 @@
 		private $debugMode = false;
 		private $objectMode = true;
 		public $lastQuery = 'No Queries made yet';
+		private $primaryKeyPrefixMode = true;
+		public $primaryKeyPrefixName = 'pk_';
 		
 		public function __construct($server = '', $dbname = '', $user = '', $pass = ''){
 			
@@ -65,7 +68,6 @@
 			else{
 				$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 			}
-		
 		}
 		
 		public function setDebugMode($bool){
@@ -81,6 +83,14 @@
 				 throw new Exception('Attribute must be bool');
 			}
 			$this->objectMode = $bool;
+			$this->setConf();
+		}
+		
+		public function setPrimaryKeyPrefixMode($bool){
+			if(!is_bool($bool)){
+				 throw new Exception('Attribute must be bool');
+			}
+			$this->primaryKeyPrefixMode = $bool;
 			$this->setConf();
 		}
 		
@@ -189,6 +199,15 @@
 			$this->lastQuery = 'No Queries made yet on table: '.$this->name;
 		}
 		
+		public function getPrimaryKeyName(){
+			if($db->primaryKeyPrefixMode){
+				return $db->primaryKeyPrefixName.$this->name;
+			}
+			else{
+				return $db->primaryKeyPrefixName;
+			}
+		}
+		
 		public function count($filter = '', $params = NULL){
 			$filter = ($filter ? 'WHERE '.$filter : '');
 			return $this->db->one("SELECT COUNT(*) FROM `$this->name` $filter", $params);
@@ -201,7 +220,8 @@
 			$onemode1 = false;
 			$onemode2 = false;
 			if(is_numeric($id)){
-				$where = "WHERE `pk_$this->name` = :id";
+				$pkn = $this->getPrimaryKeyName();
+				$where = "WHERE `$pkn` = :id";
 				$parram[] = array(':id', $id, 'int');
 				$onemode1 = true;
 			}
