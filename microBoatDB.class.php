@@ -2,7 +2,7 @@
 	
 	/*
 		
-		version 0.0.4
+		version 0.0.5
 	
 		william © botenvouwer - microBoatDB class
 		
@@ -11,18 +11,7 @@
 		todo:
 		
 			-	update function
-			-	delete function
-			-	innerjoin automaticly
-			-   primary key mode
-		
-		solution  for inner join:
-			//relatie info
-			SELECT * FROM information_schema.KEY_COLUMN_USAGE
-			//relatie info over specefike tabel
-			SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'leerlingen' AND REFERENCED_TABLE_NAME IS NOT NULL
-			//NODIG VOOR INNERJOIN BOUWEN
-			SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'leerlingen' AND REFERENCED_TABLE_NAME IS NOT NULL
-	
+			-	fix get and loop methods
 	*/
 	
 	//Database class
@@ -92,6 +81,10 @@
 			}
 			$this->primaryKeyPrefixMode = $bool;
 			$this->setConf();
+		}
+		
+		public function getPrimaryKeyPrefixMode(){
+			return $this->primaryKeyPrefixMode;
 		}
 		
 		public function query(){
@@ -169,8 +162,7 @@
 			return $query;
 		}
 		
-		public function conInfo()
-		{
+		public function conInfo(){
 			$array = array(
 				'server' => $this->getAttribute(PDO::ATTR_SERVER_INFO),
 				'server version' => $this->getAttribute(PDO::ATTR_SERVER_VERSION),
@@ -200,11 +192,11 @@
 		}
 		
 		public function getPrimaryKeyName(){
-			if($db->primaryKeyPrefixMode){
-				return $db->primaryKeyPrefixName.$this->name;
+			if($this->db->getPrimaryKeyPrefixMode()){
+				return $this->db->primaryKeyPrefixName.$this->name;
 			}
 			else{
-				return $db->primaryKeyPrefixName;
+				return $this->db->primaryKeyPrefixName;
 			}
 		}
 		
@@ -314,6 +306,10 @@
 			return $query;
 		}
 		
+		public function isColmn($name){
+			return in_array($name, $this->listColmns());
+		}
+		
 		public function loop($string = '', $id = null, $order = null, $filer = null){
 			
 			$realcolumns = $this->listColmns();
@@ -402,13 +398,40 @@
 		
 		public function delete($id){
 			
-			//moet argument hebben
-			
-			//1 record verwijder modus
-			
-			//2 of meer verwijder modus
-			
-				//alle ids preparen
+			if(is_numeric($id)){
+				$query = 'DELETE FROM `'.$this->name.'` WHERE `'.$this->getPrimaryKeyName().'` = :param';
+				$this->db->query($query, $id);
+			}
+			else if(is_string($id) || is_array($id)){
+				
+				$idList = $id;
+				if(is_string($id)){
+					$idList = explode(',', $id);
+					$idList = array_map('trim', $idList);
+				}
+				
+				$params = array();
+				$parameters = array();
+				$a = 0;
+				foreach($idList as $id){
+					$param = ':param'.$a;
+					
+					$params[] = $param;
+					$type = (is_numeric($id) ? 'int' : 'str');
+					$parameters[] = array($param, $id, $type);
+					
+					$a++;
+				}
+				
+				$params = implode(',', $params);
+				
+				$query = 'DELETE FROM `'.$this->name.'` WHERE `'.$this->getPrimaryKeyName().'` IN('.$params.')';
+				$this->db->query($query, $parameters);
+				
+			}
+			else{
+				throw new Exception('id must be single number (like 1, "1" or \'1\'), a string of comma seperated numbers (like "1,2,3" or \'1,2,3\') or array (like array(1,2,3))');
+			}
 			
 		}
 		
@@ -432,9 +455,83 @@
 			$this->insert($data);
 		}
 		
-		public function insert($data){
+		public function insert(){
 			
-			//Insert statement maken... 
+			$num = func_num_args();
+			$arg = func_get_args();
+			
+			if(($num == 1 && (is_string($arg[0]) || is_array($arg[0]))) || ($num == 2 && is_array($arg[1]))){
+				
+				if(is_string($arg[0])){
+					$parseData = array();
+					$strings = explode(',',$arg[0]);
+					$strings = array_map('trim', $strings);
+					
+					foreach($strings as $string){
+						$string = explode('=',$string);
+						$string = array_map('trim', $string);
+						$parseData[$string[0]] = $string[1];
+					}
+					
+				}
+				else{
+					$parseData = $arg[0];
+				}
+				
+				if($num == 1){
+					$colmns = array();
+					$data = array();
+					foreach($parseData  as $colmn => $value){
+						$colmns[] = $colmn;
+						$data[] = $value;
+					}
+					$data = array($data);
+				}
+				else{
+					$colmns = $arg[0];
+					$data = $arg[1];
+				}
+				
+				$colmnsQuery = array();
+				foreach($colmns as $colmn){
+					
+					if(!$this->isColmn($colmn)){
+						throw new Exception("Column name: '$colmn' does not exit inside table: '$this->name'");
+					}
+					$colmnsQuery[] = '`'.$colmn.'`';
+				}
+				
+				$colmnsQuery = implode(',', $colmnsQuery);
+				
+				$dataQuery = array();
+				$dataPrepare = array();
+				$a = 0;
+				foreach($data as $newRecord){
+					
+					$newDataString = array();
+					$b = 0;
+					foreach($newRecord as $newData){
+						$param = ':prm_'.$a.'_'.$b;
+						$type = (is_numeric($newData) ? 'int' : 'str');
+						$dataPrepare[] = array($param, $newData, $type);
+						$newDataString[] = $param;
+						$b++;
+					}
+					$newDataString = implode(',', $newDataString);
+					$dataQuery[] = '('.$newDataString.')';
+					$a++;
+				}
+				$dataQuery = implode(',',$dataQuery);
+				
+				$query = 'INSERT INTO `'.$this->name.'` ('.$colmnsQuery.') VALUES '.$dataQuery;
+				
+				$query = $this->db->query($query, $dataPrepare);
+				return $this->db->lastInsertId();
+				
+			}
+			else{
+				throw new Exception('To insert data give data string (Colmn=data,Colmn=data), data array (array=("Colmn"=>"data","Colmn"=>"data",)) or multiple data array (array("Colmn","Colmn") and array(array("data","data"),array("data","data")))');
+			}
 			
 		}
 		
