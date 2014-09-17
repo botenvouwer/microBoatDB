@@ -17,9 +17,9 @@
 		
 		private $debugMode = false;
 		private $objectMode = true;
-		public $lastQuery = 'No Queries made yet';
 		private $primaryKeyPrefixMode = true;
 		public $primaryKeyPrefixName = 'pk_';
+		public $lastQuery = 'No Queries made yet';
 		
 		public function __construct($server = '', $dbname = '', $user = '', $pass = ''){
 			
@@ -207,6 +207,27 @@
 			return $this->db->one("SELECT COUNT(*) FROM `$this->name` $filter", $params);
 		}
 		
+		public function listColmns(){
+			$query = $this->db->query("DESCRIBE `$this->name`");
+			$query = $query->fetchAll();
+			
+			$list = array();
+			foreach($query as $object){
+				$list[] = $object->Field;
+			}
+			return $list;
+		}
+		
+		public function infoColmns(){
+			$query = $this->db->query("DESCRIBE `$this->name`");
+			$query = $query->fetchAll();
+			return $query;
+		}
+		
+		public function isColmn($name){
+			return in_array($name, $this->listColmns());
+		}
+		
 		public function get($id = null, $columns = null, $order = null, $filer = null){
 			
 			$parram = array();
@@ -291,27 +312,6 @@
 			}
 		}
 		
-		public function listColmns(){
-			$query = $this->db->query("DESCRIBE `$this->name`");
-			$query = $query->fetchAll();
-			
-			$list = array();
-			foreach($query as $object){
-				$list[] = $object->Field;
-			}
-			return $list;
-		}
-		
-		public function infoColmns(){
-			$query = $this->db->query("DESCRIBE `$this->name`");
-			$query = $query->fetchAll();
-			return $query;
-		}
-		
-		public function isColmn($name){
-			return in_array($name, $this->listColmns());
-		}
-		
 		public function loop($string = '', $id = null, $order = null, $filer = null){
 			
 			$realcolumns = $this->listColmns();
@@ -394,10 +394,6 @@
 			return $newstring;
 		}
 		
-		public function remove($id){
-			$this->delete($id);
-		} 
-		
 		public function delete($id){
 			
 			if(is_numeric($id)){
@@ -426,7 +422,6 @@
 				}
 				
 				$params = implode(',', $params);
-				
 				$query = 'DELETE FROM `'.$this->name.'` WHERE `'.$this->getPrimaryKeyName().'` IN('.$params.')';
 				$this->db->query($query, $parameters);
 				
@@ -435,10 +430,6 @@
 				throw new Exception('id must be single number (like 1, "1" or \'1\'), a string of comma seperated numbers (like "1,2,3" or \'1,2,3\') or array (like array(1,2,3))');
 			}
 			
-		}
-		
-		public function change($id, $data){
-			$this->update($id, $data);
 		}
 		
 		public function update(){
@@ -492,10 +483,6 @@
 				$a++;
 			}
 			return $idList;
-		}
-		
-		public function add($data){
-			$this->insert($data);
 		}
 		
 		public function insert(){
