@@ -2,15 +2,13 @@
 	
 	/*
 		
-		version 0.0.5
+		version 0.1.0
 	
 		william © botenvouwer - microBoatDB class
 		
 		class made for easy database interaction.
 	
 		todo:
-		
-			-	update function
 			-	fix get and loop methods
 	*/
 	
@@ -189,6 +187,10 @@
 			$this->name = $name;
 			$this->db = $db;
 			$this->lastQuery = 'No Queries made yet on table: '.$this->name;
+		}
+		
+		public function getPKN(){
+			return $this->getPrimaryKeyName();
 		}
 		
 		public function getPrimaryKeyName(){
@@ -439,16 +441,57 @@
 			$this->update($id, $data);
 		}
 		
-		public function update($id, $data){
+		public function update(){
 			
-			//moet 2 argumenten hebben
+			$num = func_num_args();
+			$arg = func_get_args();
 			
-			//1 record update mode
+			if($num == 2 && is_numeric($arg[0]) && (is_string($arg[1]) || is_array($arg[1]))){
+				$dataArray = array();
+				$dataArray[$arg[0]] = $arg[1];
+			}
+			else if($num == 1 && is_array($arg[0])){
+				$dataArray = $arg[0];
+			}
+			else{
+				throw new Exception('To use update you must give primary key and data array (1, array("column"=>"value","column"=>"value")) or string (1, "column=value,column=value") or you must define a array with data array\'s and strings (array(array(1 => "column=value"),array(2 => "column=value")))');
+			}
 			
-			//2 of meer update mode
-			
-				//alle data preparen
-			
+			$idList = array();
+			$a = 0;
+			foreach($dataArray as $pk => $dataRecord){
+				
+				if(is_string($dataRecord)){
+					$dataRecord = $this->parseDataString($dataRecord);
+				}
+				
+				if(is_array($dataRecord)){
+					$params = array();
+					$pklabel = ':pk_'.$a;
+					$params[] = array($pklabel, $pk, 'int');
+					$dataQuery = array();
+					$b = 0;
+					
+					foreach($dataRecord as $column => $data){
+						$label = ':prm_'.$b;
+						$dataQuery[] = $column.'='.$label;
+						$type = (is_numeric($data) ? 'int' : 'str');
+						$params[] = array($label, $data, $type);
+						$b++;
+					}
+					
+					$dataQuery = implode(',', $dataQuery);
+					$query = 'UPDATE `'.$this->name.'` SET '.$dataQuery.' WHERE `'.$this->getPrimaryKeyName().'` = '.$pklabel;
+					$this->db->query($query, $params);
+					$idList[] = $pk;
+				}
+				else{
+					throw new Exception("No dataArray or dataSting defined for record - ".$this->getPrimaryKeyName()." -> $pk");
+				}
+				
+				$a++;
+			}
+			return $idList;
 		}
 		
 		public function add($data){
@@ -463,16 +506,7 @@
 			if(($num == 1 && (is_string($arg[0]) || is_array($arg[0]))) || ($num == 2 && is_array($arg[1]))){
 				
 				if(is_string($arg[0])){
-					$parseData = array();
-					$strings = explode(',',$arg[0]);
-					$strings = array_map('trim', $strings);
-					
-					foreach($strings as $string){
-						$string = explode('=',$string);
-						$string = array_map('trim', $string);
-						$parseData[$string[0]] = $string[1];
-					}
-					
+					$parseData = $this->parseDataString($arg[0]);
 				}
 				else{
 					$parseData = $arg[0];
@@ -509,30 +543,47 @@
 				foreach($data as $newRecord){
 					
 					$newDataString = array();
+					$dataPrebArray = array();
 					$b = 0;
 					foreach($newRecord as $newData){
 						$param = ':prm_'.$a.'_'.$b;
 						$type = (is_numeric($newData) ? 'int' : 'str');
-						$dataPrepare[] = array($param, $newData, $type);
+						$dataPrebArray[] = array($param, $newData, $type);
 						$newDataString[] = $param;
 						$b++;
 					}
+					$dataPrepare[] = $dataPrebArray;
 					$newDataString = implode(',', $newDataString);
 					$dataQuery[] = '('.$newDataString.')';
 					$a++;
 				}
-				$dataQuery = implode(',',$dataQuery);
 				
-				$query = 'INSERT INTO `'.$this->name.'` ('.$colmnsQuery.') VALUES '.$dataQuery;
-				
-				$query = $this->db->query($query, $dataPrepare);
-				return $this->db->lastInsertId();
+				$idList = array();
+				foreach($dataQuery as $key => $query){
+					$query = 'INSERT INTO `'.$this->name.'` ('.$colmnsQuery.') VALUES '.$query;
+					$query = $this->db->query($query, $dataPrepare[$key]);
+					$idList[] = $this->db->lastInsertId();
+				}
+				return $idList;
 				
 			}
 			else{
 				throw new Exception('To insert data give data string (Colmn=data,Colmn=data), data array (array=("Colmn"=>"data","Colmn"=>"data",)) or multiple data array (array("Colmn","Colmn") and array(array("data","data"),array("data","data")))');
 			}
 			
+		}
+		
+		public function parseDataString($dataString){
+			$parseData = array();
+			$strings = explode(',',$dataString);
+			$strings = array_map('trim', $strings);
+			
+			foreach($strings as $string){
+				$string = explode('=',$string);
+				$string = array_map('trim', $string);
+				$parseData[$string[0]] = $string[1];
+			}
+			return $parseData;
 		}
 		
 		public function json($id = null, $columns = null, $order = null, $filer = null){
