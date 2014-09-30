@@ -2,7 +2,7 @@
 	
 	/*
 		
-		version 0.1.0
+		version 0.1.1
 	
 		william © botenvouwer - microBoatDB class
 		
@@ -465,7 +465,7 @@
 					
 					foreach($dataRecord as $column => $data){
 						$label = ':prm_'.$b;
-						$dataQuery[] = $column.'='.$label;
+						$dataQuery[] = '`'.$column.'`'.'='.$label;
 						$type = (is_numeric($data) ? 'int' : 'str');
 						$params[] = array($label, $data, $type);
 						$b++;
@@ -473,6 +473,7 @@
 					
 					$dataQuery = implode(',', $dataQuery);
 					$query = 'UPDATE `'.$this->name.'` SET '.$dataQuery.' WHERE `'.$this->getPrimaryKeyName().'` = '.$pklabel;
+					$this->lastQuery = $query;
 					$this->db->query($query, $params);
 					$idList[] = $pk;
 				}
